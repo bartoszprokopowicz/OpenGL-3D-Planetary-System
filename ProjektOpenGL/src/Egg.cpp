@@ -25,7 +25,7 @@ void Egg::generateCloud()
 			float _v = v / ((float)density - 1);
 			//Generacja chmury punktów
 			parametricTable[u][v].x = ((-90 * pow(_u, 5)) + (225 * pow(_u, 4)) - (270 * pow(_u, 3)) + (180 * pow(_u, 2)) - (45 * _u)) * (cos(M_PI * _v));
-			parametricTable[u][v].y = (160 * pow(_u, 4)) - (320 * pow(_u, 3)) + (160 * pow(_u, 2));
+			parametricTable[u][v].y = (160 * pow(_u, 4)) - (320 * pow(_u, 3)) + (160 * pow(_u, 2)) - 5.0f;
 			parametricTable[u][v].z = ((-90 * pow(_u, 5)) + (225 * pow(_u, 4)) - (270 * pow(_u, 3)) + (180 * pow(_u, 2)) - (45 * _u)) * (sin(M_PI * _v));
 			//Generowanie losowych kolorów
 			parametricTable[u][v].r = randFloat();

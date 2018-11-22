@@ -19,25 +19,49 @@
 
 typedef float point3[3];
 
-/*************************************************************************************/
-
-// Funkcja rysuj¹ca osie uk³adu wspó³rzêdnych
-
-Egg egg(10);
+static GLfloat observer[] = { 0.0, 0.0, 15.0 };
 
 int model = 1;
 
 int WIDTH = 600, HEIGHT = 600;
 
-int start_timer = time(NULL), now_timer = 0, frame_count = 0;
+// Zmienne przchowuj¹ce aktualny k¹t obrotu obiektu
+// Pocz¹tkowa pozycja ma k¹t 0 stopni
+static GLfloat theta = 1.0;
+static GLfloat phi = 1.0;
 
-static GLfloat theta[] = { 0.0, 0.0, 0.0 }; // trzy k¹ty obrotu
+// Zmienna przechowuj¹ca stan naciœniêcia klawiszy
+// Zmienia wartoœæ na 1 je¿eli klawisz LMB jest naciœniêty
+// Zmienia wartoœæ na 2 je¿eli klawisz RMB jest naciœniêty
+static int mouseButton = 0;
 
+// Zmienne przechowuj¹ce pozycjê myszy oraz ró¿nicê
+// W poztycji myszy w czasie
+int xMouse_old = 0;
+int xMouse_delta = 0;
+int yMouse_old = 0;
+int yMouse_delta = 0;
 
+// Zmienne przechowuj¹ce wartoœæ zmiany k¹ta
+// Wyra¿on¹ w iloœci pikseli
+GLfloat xPix2Angle;
+GLfloat yPix2Angle;
+
+// Promieñ od obiektu
+GLfloat radius_start = 15.0;
+GLfloat radius_old = 0.0;
+GLfloat radius_delta = 0.0;
+
+// Zmienne odpowiedzialne za ruch po okrêgu
+float x1, z1;
+int angle = 0;
+
+Egg egg(10);
+
+Egg egg2(10);
 
 void Axes(void)
 {
-	
 	point3  x_min = { -5.0, 0.0, 0.0 };
 	point3  x_max = { 5.0, 0.0, 0.0 };
 	// pocz¹tek i koniec obrazu osi x
@@ -73,7 +97,6 @@ void Axes(void)
 	glVertex3fv(z_max);
 
 	glEnd();
-
 }
 
 /*************************************************************************************/
@@ -85,40 +108,61 @@ void Axes(void)
 
 void RenderScene(void)
 {
-
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	// Czyszczenie okna aktualnym kolorem czyszcz¹cym
 
 	glLoadIdentity();
 	// Czyszczenie macierzy bie¿¹cej
 
-	glRotatef(theta[0], 1.0, 0.0, 0.0);
+	// Zmiana stanu zmiennej okreslaj¹cej naciœniêcie guzika
+	if (mouseButton == 1)
+	{
+		// Aktualizacja parametrów k¹towych
+		if(cos(phi) <= 0.0)
+			theta -= xMouse_delta * xPix2Angle;
+		else
+			theta += xMouse_delta * xPix2Angle;
 
-	glRotatef(theta[1], 0.0, 1.0, 0.0);
+		phi += yMouse_delta * yPix2Angle;
+	}
+	if (mouseButton == 2)
+	{
+		// Aktualizacja promienia
+		radius_start += radius_delta * yPix2Angle * 13.0;
+	}
 
-	glRotatef(theta[2], 0.0, 0.0, 1.0);
+	theta = fmodf(theta, 2 * M_PI); 
+	phi = fmodf(phi, 2 * M_PI);
 
+	// Zmiana pozycji obserwatora zgodnie z równaniami
+	observer[1] = radius_start * sin(phi);
+
+	float y;
+	if (cos(phi) >= 0.0) 
+	{
+		observer[0] = radius_start * cos(theta) * cos(phi);
+		observer[2] = radius_start * sin(theta) * cos(phi);
+		y = 1.0;
+	}
+	else
+	{
+		observer[0] = radius_start * cos(theta) * cos(phi);
+		observer[2] = radius_start * sin(theta) * cos(phi);
+		y = -1.0;
+	}
+	gluLookAt(observer[0], observer[1], observer[2], 0.0, 0.0, 0.0, 0.0, y, 0.0);
 
 	// Narysowanie osi przy pomocy funkcji zdefiniowanej ni¿ej
-	Axes();
-	//Obni¿enie obiektów o 5 punktów 
-	glTranslated(0.0, -5.0, 0.0);
+	Axes(); 
+	
 	// Narysowanie obiektu jajka
 	egg.draw(model);
-	// Przesuniêcie wzglêdem o Y
 	
-	glFlush();
-	// Przekazanie poleceñ rysuj¹cych do wykonania
+	glTranslated(x1, 0.0, z1);
+
+	egg2.draw(model);
 
 	glutSwapBuffers();
-	// Iloœæ FPS
-	frame_count++;
-	now_timer = time(NULL);
-	if (now_timer - start_timer > 0) {
-		std::cout << "FPS: " << frame_count / (now_timer - start_timer) << std::endl;
-		frame_count = 0;
-		start_timer = now_timer;
-	}
 }
 
 /*************************************************************************************/
@@ -130,6 +174,7 @@ void RenderScene(void)
 void MyInit(void)
 {
 	egg.generateCloud();
+	egg2.generateCloud();
 	glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 	// Kolor czyszc¹cy (wype³nienia okna) ustawiono na czarny
 
@@ -146,50 +191,28 @@ void MyInit(void)
 
 void ChangeSize(GLsizei horizontal, GLsizei vertical)
 {
+	// Przeliczenie zmiany iloœci pikseli w ruchu myszy na stopnie
+	xPix2Angle = 2 * M_PI / (float)horizontal;
+	yPix2Angle = 2 * M_PI / (float)vertical;
 
-	GLfloat AspectRatio;
-	// Deklaracja zmiennej AspectRatio  okreœlaj¹cej proporcjê
-	// wymiarów okna 
+	// Przejœcie w tryb projekcji
+	glMatrixMode(GL_PROJECTION);
 
-	if (vertical == 0)  // Zabezpieczenie przed dzieleniem przez 0
+	// Czyszczenie macierzy bie¿¹cej
+	glLoadIdentity();
 
-		vertical = 1;
-	
-	WIDTH = horizontal;
-	HEIGHT = vertical;
+	GLfloat aspectRatio = (GLfloat)horizontal / (GLfloat)vertical;
+
+	// Ustawienie parametrów dla rzutu perspektywicznego
+	gluPerspective(70, aspectRatio, 1.0, 300.0);
 
 	glViewport(0, 0, horizontal, vertical);
-	// Ustawienie wielkoœciokna okna widoku (viewport)
-	// W tym przypadku od (0,0) do (horizontal, vertical)  
 
-	glMatrixMode(GL_PROJECTION);
-	// Prze³¹czenie macierzy bie¿¹cej na macierz projekcji 
-
-	glLoadIdentity();
-	// Czyszcznie macierzy bie¿¹cej            
-
-	AspectRatio = (GLfloat)horizontal / (GLfloat)vertical;
-	// Wyznaczenie wspó³czynnika  proporcji okna
-	// Gdy okno nie jest kwadratem wymagane jest okreœlenie tak zwanej
-	// przestrzeni ograniczaj¹cej pozwalaj¹cej zachowaæ w³aœciwe
-	// proporcje rysowanego obiektu.
-	// Do okreslenia przestrzeni ograniczj¹cej s³u¿y funkcja
-	// glOrtho(...)            
-
-	if (horizontal <= vertical)
-
-		glOrtho(-7.5, 7.5, -7.5 / AspectRatio, 7.5 / AspectRatio, 10.0, -10.0);
-
-	else
-
-		glOrtho(-7.5*AspectRatio, 7.5*AspectRatio, -7.5, 7.5, 10.0, -10.0);
-
+	// Powrót do trybu modelu
 	glMatrixMode(GL_MODELVIEW);
-	// Prze³¹czenie macierzy bie¿¹cej na macierz widoku modelu                                    
 
+	// Czyszczenie macierzy bie¿¹cej
 	glLoadIdentity();
-	// Czyszcenie macierzy bie¿¹cej
-
 }
 
 /*************************************************************************************/
@@ -202,25 +225,56 @@ void keys(unsigned char key, int x, int y)
 	if (key == 'w') model = 2;
 	if (key == 'e') model = 3;
 
-	RenderScene(); // przerysowanie obrazu sceny
+	//RenderScene(); // przerysowanie obrazu sceny
 }
 
-
-void spinEgg(int)
+void MouseButtonState(int btn, int state, int x, int y)
 {
 
-	theta[0] -= 0.5;
-	if (theta[0] > 360.0) theta[0] -= 360.0;
+	// Zmiana stanu zmiennej okreslaj¹cej naciœniêcie guzika
+	if (btn == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
+	{
+		// Aktualizacja pozycji kursora
+		xMouse_old = x;
+		yMouse_old = y;
+		mouseButton = 1;
+	}
+	else if (btn == GLUT_RIGHT_BUTTON && state == GLUT_DOWN)
+	{
+		// Aktualizacja promienia
+		radius_old = y;
+		mouseButton = 2;
+	}
+	else
+		mouseButton = 0;
+}
 
-	theta[1] -= 0.5;
-	if (theta[1] > 360.0) theta[1] -= 360.0;
+void MousePosition(GLsizei x, GLsizei y)
+{
+	// Obliczenie ró¿nicy w pozycji myszy
+	xMouse_delta = x - xMouse_old;
+	yMouse_delta = y - yMouse_old;
+	radius_delta = y - radius_old;
 
-	theta[2] -= 0.5;
-	if (theta[2] > 360.0) theta[2] -= 360.0;
+	// Zapisanie aktualnej pozycji myszy
+	xMouse_old = x;
+	yMouse_old = y;
+	radius_old = y;
 
-	glutTimerFunc(1000 / FPS, spinEgg, 0);
+	// Odœwie¿enie widoku
+	//glutPostRedisplay();
+}
 
-	glutPostRedisplay(); //odœwie¿enie zawartoœci aktualnego okna
+void Move(int) {
+
+	int r = 10;
+	angle += 1;
+	angle = angle % 361;
+	x1 = r * cos(angle * (float)M_PI / 180);
+	z1 = r * sin(angle * (float)M_PI / 180);
+	
+	glutPostRedisplay();
+	glutTimerFunc(1000 / FPS, Move, 0);
 }
 
 
@@ -231,7 +285,7 @@ void main(void)
 
 	glutInitWindowSize(WIDTH, HEIGHT);
 
-	glutCreateWindow("Jajko w 3D");
+	glutCreateWindow("Planetary System");
 
 	glutDisplayFunc(RenderScene);
 	// Okreœlenie, ¿e funkcja RenderScene bêdzie funkcj¹ zwrotn¹
@@ -242,11 +296,14 @@ void main(void)
 	// Dla aktualnego okna ustala funkcjê zwrotn¹ odpowiedzialn¹
 	// zazmiany rozmiaru okna      
 
+	glutDisplayFunc(RenderScene);
+	glutReshapeFunc(ChangeSize);
+	glutMouseFunc(MouseButtonState);
 	glutKeyboardFunc(keys);
+	glutMotionFunc(MousePosition);
+	//glutIdleFunc(Move);
+	glutTimerFunc(1000/ FPS, Move, 0);
 
-	//glutIdleFunc(spinEgg);
-
-	glutTimerFunc(1000/FPS, spinEgg, 0);
 
 	MyInit();
 	// Funkcja MyInit() (zdefiniowana powy¿ej) wykonuje wszelkie
