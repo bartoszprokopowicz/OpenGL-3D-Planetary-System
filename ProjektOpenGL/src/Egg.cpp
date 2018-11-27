@@ -7,7 +7,7 @@ float Egg::randFloat()
 	return static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
 }
 
-Egg::Egg(int density) : density(density)
+Egg::Egg(int density, int weight) : density(density), weight(weight)
 {
 	parametricTable.resize(density, std::vector<pointsNrgb>(density));
 }

@@ -14,8 +14,9 @@
 #include <time.h>
 #include "Egg.h"
 #include "coords.h"
+#include "Camera.h"
 
-#define FPS 60
+#define FPS 1000 / 60
 
 typedef float point3[3];
 
@@ -25,40 +26,31 @@ int model = 1;
 
 int WIDTH = 600, HEIGHT = 600;
 
-// Zmienne przchowuj¹ce aktualny k¹t obrotu obiektu
-// Pocz¹tkowa pozycja ma k¹t 0 stopni
-static GLfloat theta = 1.0;
-static GLfloat phi = 1.0;
+//Zmienne dla poruszania sie planet
+float x, z;
+int angle = 0;
+int r = 10;
+
+int a = 18;
+int b = 15;
+
+float xoff;
 
 // Zmienna przechowuj¹ca stan naciœniêcia klawiszy
 // Zmienia wartoœæ na 1 je¿eli klawisz LMB jest naciœniêty
 // Zmienia wartoœæ na 2 je¿eli klawisz RMB jest naciœniêty
-static int mouseButton = 0;
-
-// Zmienne przechowuj¹ce pozycjê myszy oraz ró¿nicê
-// W poztycji myszy w czasie
-int xMouse_old = 0;
-int xMouse_delta = 0;
-int yMouse_old = 0;
-int yMouse_delta = 0;
-
-// Zmienne przechowuj¹ce wartoœæ zmiany k¹ta
-// Wyra¿on¹ w iloœci pikseli
-GLfloat xPix2Angle;
-GLfloat yPix2Angle;
-
-// Promieñ od obiektu
-GLfloat radius_start = 15.0;
-GLfloat radius_old = 0.0;
-GLfloat radius_delta = 0.0;
+int mouseButton = 0;
 
 // Zmienne odpowiedzialne za ruch po okrêgu
-float x1, z1;
-int angle = 0;
 
-Egg egg(10);
+Egg egg(10, 5);
 
-Egg egg2(10);
+Egg egg2(10, 1);
+
+Camera camera;
+
+int frame = 0;
+float timer, timerbase = 0;
 
 void Axes(void)
 {
@@ -99,6 +91,22 @@ void Axes(void)
 	glEnd();
 }
 
+void Ellipse(int _xoff)
+{
+	float x, z;
+
+	glColor3f(1.0f, 0.0f, 0.0f);
+	glBegin(GL_LINE_LOOP);
+	for (int _angle = 0.0; _angle < 361.0; _angle++)
+	{
+		x = a * cosf(_angle * (float)M_PI / 180.0f) + xoff;
+		z = b * sinf(_angle * (float)M_PI / 180.0f);
+		glVertex3f(x, 0.0f, z);
+	}
+		
+	glEnd();
+}
+
 /*************************************************************************************/
 
 // Funkcja okreœlaj¹ca co ma byæ rysowane (zawsze wywo³ywana gdy trzeba
@@ -114,51 +122,16 @@ void RenderScene(void)
 	glLoadIdentity();
 	// Czyszczenie macierzy bie¿¹cej
 
-	// Zmiana stanu zmiennej okreslaj¹cej naciœniêcie guzika
-	if (mouseButton == 1)
-	{
-		// Aktualizacja parametrów k¹towych
-		if(cos(phi) <= 0.0)
-			theta -= xMouse_delta * xPix2Angle;
-		else
-			theta += xMouse_delta * xPix2Angle;
-
-		phi += yMouse_delta * yPix2Angle;
-	}
-	if (mouseButton == 2)
-	{
-		// Aktualizacja promienia
-		radius_start += radius_delta * yPix2Angle * 13.0;
-	}
-
-	theta = fmodf(theta, 2 * M_PI); 
-	phi = fmodf(phi, 2 * M_PI);
-
-	// Zmiana pozycji obserwatora zgodnie z równaniami
-	observer[1] = radius_start * sin(phi);
-
-	float y;
-	if (cos(phi) >= 0.0) 
-	{
-		observer[0] = radius_start * cos(theta) * cos(phi);
-		observer[2] = radius_start * sin(theta) * cos(phi);
-		y = 1.0;
-	}
-	else
-	{
-		observer[0] = radius_start * cos(theta) * cos(phi);
-		observer[2] = radius_start * sin(theta) * cos(phi);
-		y = -1.0;
-	}
-	gluLookAt(observer[0], observer[1], observer[2], 0.0, 0.0, 0.0, 0.0, y, 0.0);
+	camera.Refresh(mouseButton);
 
 	// Narysowanie osi przy pomocy funkcji zdefiniowanej ni¿ej
-	Axes(); 
+	Axes();
 	
+	Ellipse(xoff);
 	// Narysowanie obiektu jajka
 	egg.draw(model);
 	
-	glTranslated(x1, 0.0, z1);
+	glTranslatef(x, 0.0, z);
 
 	egg2.draw(model);
 
@@ -175,25 +148,18 @@ void MyInit(void)
 {
 	egg.generateCloud();
 	egg2.generateCloud();
-	glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glShadeModel(GL_SMOOTH);
+	float aambb1 = (a*a) - (b * b);
+	xoff = sqrt(aambb1);
 	// Kolor czyszc¹cy (wype³nienia okna) ustawiono na czarny
 
 }
 
-/*************************************************************************************/
-
-// Funkcja ma za zadanie utrzymanie sta³ych proporcji rysowanych
-// w przypadku zmiany rozmiarów okna.
-// Parametry vertical i horizontal (wysokoœæ i szerokoœæ okna) s¹
-// przekazywane do funkcji za ka¿dym razem gdy zmieni siê rozmiar okna.
-
-
-
 void ChangeSize(GLsizei horizontal, GLsizei vertical)
 {
 	// Przeliczenie zmiany iloœci pikseli w ruchu myszy na stopnie
-	xPix2Angle = 2 * M_PI / (float)horizontal;
-	yPix2Angle = 2 * M_PI / (float)vertical;
+	camera.Pix2Angle(360.0 / (float)horizontal, 360.0 / (float)vertical);
 
 	// Przejœcie w tryb projekcji
 	glMatrixMode(GL_PROJECTION);
@@ -215,10 +181,6 @@ void ChangeSize(GLsizei horizontal, GLsizei vertical)
 	glLoadIdentity();
 }
 
-/*************************************************************************************/
-
-// G³ówny punkt wejœcia programu. Program dzia³a w trybie konsoli
-
 void keys(unsigned char key, int x, int y)
 {
 	if (key == 'q') model = 1;
@@ -230,52 +192,54 @@ void keys(unsigned char key, int x, int y)
 
 void MouseButtonState(int btn, int state, int x, int y)
 {
-
 	// Zmiana stanu zmiennej okreslaj¹cej naciœniêcie guzika
 	if (btn == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
 	{
-		// Aktualizacja pozycji kursora
-		xMouse_old = x;
-		yMouse_old = y;
+		camera.setMousePosition(x, y);	
 		mouseButton = 1;
 	}
 	else if (btn == GLUT_RIGHT_BUTTON && state == GLUT_DOWN)
 	{
-		// Aktualizacja promienia
-		radius_old = y;
+		camera.setRadius(y);
 		mouseButton = 2;
 	}
 	else
+	{
 		mouseButton = 0;
+	}
+}
+
+void idle(int) {
+	glutPostRedisplay();
+}
+
+void Move() {
+
+	timer = glutGet(GLUT_ELAPSED_TIME);
+
+	float temp1 = a * cosf(angle * (float)M_PI / 180) + xoff;
+
+	if(timer - timerbase > (FPS * (temp1/r) * sqrtf(pow(temp1,2) / pow(r, 2)))) {
+		angle += 1;
+		angle = angle % 361;
+		x = a * cosf(angle * (float)M_PI / 180) + xoff;
+		z = b * sinf(angle * (float)M_PI / 180);
+		timerbase = timer;
+	}
+
+	//glutTimerFunc(FPS, Move, 0);
+	glutPostRedisplay();
 }
 
 void MousePosition(GLsizei x, GLsizei y)
 {
-	// Obliczenie ró¿nicy w pozycji myszy
-	xMouse_delta = x - xMouse_old;
-	yMouse_delta = y - yMouse_old;
-	radius_delta = y - radius_old;
+	camera.calculatePosition(x, y);
+	camera.calculateRadius(y);
 
-	// Zapisanie aktualnej pozycji myszy
-	xMouse_old = x;
-	yMouse_old = y;
-	radius_old = y;
-
-	// Odœwie¿enie widoku
-	//glutPostRedisplay();
+	//glutTimerFunc(FPS, idle, 0);
 }
 
-void Move(int) {
 
-	int r = 10;
-	angle += 1;
-	angle = angle % 361;
-	x1 = r * cos(angle * (float)M_PI / 180);
-	z1 = r * sin(angle * (float)M_PI / 180);
-	
-	glutPostRedisplay();
-	glutTimerFunc(1000 / FPS, Move, 0);
-}
 
 
 
@@ -300,9 +264,10 @@ void main(void)
 	glutReshapeFunc(ChangeSize);
 	glutMouseFunc(MouseButtonState);
 	glutKeyboardFunc(keys);
+	//glutPassiveMotionFunc(MousePosition);
 	glutMotionFunc(MousePosition);
-	//glutIdleFunc(Move);
-	glutTimerFunc(1000/ FPS, Move, 0);
+	glutIdleFunc(Move);
+	//glutTimerFunc(FPS, Move, 0);
 
 
 	MyInit();

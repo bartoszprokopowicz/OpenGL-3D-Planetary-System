@@ -11,12 +11,13 @@ class Egg
 {
 private:
 	int density;
+	int weight;
 	std::vector<std::vector<pointsNrgb>> parametricTable;
 	float randFloat();
 
 public:
 	
-	Egg(int density);
+	Egg(int density, int weight);
 	std::vector<std::vector<pointsNrgb>> getparametricTable();
 	void generateCloud();
 	void draw(int model);
