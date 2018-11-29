@@ -102,6 +102,10 @@ void Egg::draw(int model)
 }
 
 
+Egg::Egg()
+{
+}
+
 Egg::~Egg()
 {
 }

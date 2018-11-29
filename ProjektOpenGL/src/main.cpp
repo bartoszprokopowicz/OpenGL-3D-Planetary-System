@@ -17,6 +17,7 @@
 #include "Camera.h"
 
 #define FPS 1000 / 60
+#define planetsCount 8
 
 typedef float point3[3];
 
@@ -27,14 +28,10 @@ int model = 1;
 int WIDTH = 600, HEIGHT = 600;
 
 //Zmienne dla poruszania sie planet
-float x, z;
-int angle = 0;
-int r = 10;
-
-int a = 18;
-int b = 15;
-
-float xoff;
+//Sta³a g
+const float G = 6.67 * pow(10, -9);
+//si³a grawitacji
+float Fg[planetsCount];
 
 // Zmienna przechowuj¹ca stan naciœniêcia klawiszy
 // Zmienia wartoœæ na 1 je¿eli klawisz LMB jest naciœniêty
@@ -43,13 +40,12 @@ int mouseButton = 0;
 
 // Zmienne odpowiedzialne za ruch po okrêgu
 
-Egg egg(10, 5);
+Egg sun(10, 5000000);
 
-Egg egg2(10, 1);
+Egg planet[planetsCount];
 
 Camera camera;
 
-int frame = 0;
 float timer, timerbase = 0;
 
 void Axes(void)
@@ -91,19 +87,14 @@ void Axes(void)
 	glEnd();
 }
 
-void Ellipse(int _xoff)
+void Ellipse()
 {
-	float x, z;
 
 	glColor3f(1.0f, 0.0f, 0.0f);
 	glBegin(GL_LINE_LOOP);
-	for (int _angle = 0.0; _angle < 361.0; _angle++)
-	{
-		x = a * cosf(_angle * (float)M_PI / 180.0f) + xoff;
-		z = b * sinf(_angle * (float)M_PI / 180.0f);
-		glVertex3f(x, 0.0f, z);
-	}
-		
+	
+	//glVertex3f(x, 0.0f, z);
+	
 	glEnd();
 }
 
@@ -122,19 +113,24 @@ void RenderScene(void)
 	glLoadIdentity();
 	// Czyszczenie macierzy bie¿¹cej
 
+	//camera.setPos(planet[2].x, 5.0, planet[2].z);
+
 	camera.Refresh(mouseButton);
 
 	// Narysowanie osi przy pomocy funkcji zdefiniowanej ni¿ej
 	Axes();
 	
-	Ellipse(xoff);
+	Ellipse();
 	// Narysowanie obiektu jajka
-	egg.draw(model);
+	sun.draw(model);
+	for (int i = 0; i < planetsCount; i++) {
+		glPushMatrix();
+		glTranslatef(planet[i].x, 0.0, planet[i].z);
+		planet[i].draw(model);
+		glPopMatrix();
+	}
 	
-	glTranslatef(x, 0.0, z);
-
-	egg2.draw(model);
-
+	
 	glutSwapBuffers();
 }
 
@@ -146,14 +142,29 @@ void RenderScene(void)
 
 void MyInit(void)
 {
-	egg.generateCloud();
-	egg2.generateCloud();
+	sun.generateCloud();
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glShadeModel(GL_SMOOTH);
-	float aambb1 = (a*a) - (b * b);
-	xoff = sqrt(aambb1);
-	// Kolor czyszc¹cy (wype³nienia okna) ustawiono na czarny
 
+	for (int i = 0; i < planetsCount; i++) {
+		planet[i] = Egg(10, 1);
+		planet[i].generateCloud();
+		planet[i].x = 30 + i*10;
+		planet[i].z = 0;
+		planet[i].distans = sqrtf((planet[i].x * planet[i].x) + (planet[i].z * planet[i].z));
+		Fg[i] = G * (planet[i].weight * sun.weight) / (planet[i].distans * planet[i].distans);
+		planet[i].vx = 0;
+		planet[i].vz = sqrtf(2 * planet[i].distans * (Fg[i] / planet[i].weight));
+	}
+
+	//egg2.x = 60;
+	//egg2.z = 0;
+
+	//egg2.distans = sqrtf((egg2.x * egg2.x) + (egg2.z * egg2.z));
+
+	//Fg = G * (egg2.weight * egg.weight) / (egg2.distans * egg2.distans);
+
+	//egg2.vz = sqrtf(2 * egg2.distans * (Fg / egg2.weight));
 }
 
 void ChangeSize(GLsizei horizontal, GLsizei vertical)
@@ -170,7 +181,7 @@ void ChangeSize(GLsizei horizontal, GLsizei vertical)
 	GLfloat aspectRatio = (GLfloat)horizontal / (GLfloat)vertical;
 
 	// Ustawienie parametrów dla rzutu perspektywicznego
-	gluPerspective(70, aspectRatio, 1.0, 300.0);
+	gluPerspective(70, aspectRatio, 1.0, 3000.0);
 
 	glViewport(0, 0, horizontal, vertical);
 
@@ -209,25 +220,45 @@ void MouseButtonState(int btn, int state, int x, int y)
 	}
 }
 
-void idle(int) {
-	glutPostRedisplay();
-}
-
 void Move() {
 
 	timer = glutGet(GLUT_ELAPSED_TIME);
 
-	float temp1 = a * cosf(angle * (float)M_PI / 180) + xoff;
+	float timerdiff = timer - timerbase;
+	
+	for (int i = 0; i < planetsCount; i++) {
+		
 
-	if(timer - timerbase > (FPS * (temp1/r) * sqrtf(pow(temp1,2) / pow(r, 2)))) {
-		angle += 1;
-		angle = angle % 361;
-		x = a * cosf(angle * (float)M_PI / 180) + xoff;
-		z = b * sinf(angle * (float)M_PI / 180);
-		timerbase = timer;
+		planet[i].distans = sqrtf((planet[i].x * planet[i].x) + (planet[i].z * planet[i].z));
+
+		Fg[i] = G * (sun.weight * planet[i].weight) / (planet[i].distans * planet[i].distans);
+
+		planet[i].ax = -(planet[i].x / planet[i].distans) * (Fg[i] / planet[i].weight);
+		planet[i].az = -(planet[i].z / planet[i].distans) * (Fg[i] / planet[i].weight);
+
+		planet[i].vx -= -planet[i].ax * timerdiff;
+		planet[i].vz -= -planet[i].az * timerdiff;
+
+		planet[i].x += planet[i].vx / 2 * timerdiff;
+		planet[i].z += planet[i].vz / 2 * timerdiff;
+
+		
 	}
 
-	//glutTimerFunc(FPS, Move, 0);
+	timerbase = timer;
+	//egg2.distans = sqrtf((egg2.x * egg2.x) + (egg2.z * egg2.z));
+
+	//Fg = G * (egg.weight * egg2.weight) / (egg2.distans * egg2.distans);
+
+	//egg2.ax = -(egg2.x / egg2.distans) * (Fg / egg2.weight);
+	//egg2.az = -(egg2.z / egg2.distans) * (Fg / egg2.weight);
+
+	//egg2.vx -= -egg2.ax * timerdiff;
+	//egg2.vz -= -egg2.az * timerdiff;
+
+	//egg2.x += egg2.vx / 2 * timerdiff;
+	//egg2.z += egg2.vz / 2 * timerdiff;
+	
 	glutPostRedisplay();
 }
 
@@ -235,8 +266,6 @@ void MousePosition(GLsizei x, GLsizei y)
 {
 	camera.calculatePosition(x, y);
 	camera.calculateRadius(y);
-
-	//glutTimerFunc(FPS, idle, 0);
 }
 
 
@@ -264,11 +293,8 @@ void main(void)
 	glutReshapeFunc(ChangeSize);
 	glutMouseFunc(MouseButtonState);
 	glutKeyboardFunc(keys);
-	//glutPassiveMotionFunc(MousePosition);
 	glutMotionFunc(MousePosition);
 	glutIdleFunc(Move);
-	//glutTimerFunc(FPS, Move, 0);
-
 
 	MyInit();
 	// Funkcja MyInit() (zdefiniowana powy¿ej) wykonuje wszelkie

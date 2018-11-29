@@ -97,6 +97,15 @@ int Camera::getDelta()
 	return xMouse_delta + yMouse_delta;
 }
 
+void Camera::setPos(float x, float y, float z)
+{
+	position[0] = x;
+	position[1] = y;
+	position[2] = z;
+
+	gluLookAt(position[0], position[1], position[2], 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+}
+
 
 Camera::~Camera()
 {

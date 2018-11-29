@@ -48,6 +48,7 @@ public:
 	void setRadius(GLfloat radius);
 	void Pix2Angle(GLfloat _xPix2Angle, GLfloat _yPix2Angle);
 	int getDelta();
+	void setPos(float x, float y, float z);
 
 	~Camera();
 };
